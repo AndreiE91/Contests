@@ -1,2 +1,2 @@
 # Contests
-Code from various contest/events
+Code from various contests/events
