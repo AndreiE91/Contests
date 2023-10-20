@@ -1,2 +1,2 @@
 # Contests
-Code from all contests I have attended so far
+Code from various contest/events
