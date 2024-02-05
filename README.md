@@ -43,4 +43,4 @@ Each challenge is organized into its own directory within the repository. Inside
 To get started, simply clone this repository to your local machine:
 
 ```bash
-git clone https://github.com/your-username/coding-contest-challenges.git
+git clone https://github.com/AndreiE91/Contests.git
