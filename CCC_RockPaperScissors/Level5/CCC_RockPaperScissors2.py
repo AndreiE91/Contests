@@ -447,7 +447,7 @@ def generate_initial_pairing(i, m, r_counts, p_counts, s_counts, l_counts, y_cou
     return pairing
 
 # Process Rock-Paper-Scissors tournaments for levels 1 to 5
-for level in range(4, 6):
+for level in range(1, 6):
     input_file_name = f"level5_{level}.in"
     output_file_name = f"level5_{level}.out"
 

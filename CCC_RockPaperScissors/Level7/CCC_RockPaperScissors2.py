@@ -1,5 +1,6 @@
 import random
 import math
+import copy
 
 class Candidate:
     def __init__(self, pairing, fitness):
@@ -12,73 +13,11 @@ class Candidate:
 class z_character:
     def __init__(self, index):
         self.index = index
-        self.met_r = False
         self.met_p = False
-        self.met_s = False
         self.met_l = False
         self.met_y = False
-
-# Function to mask bits specified by start and end index, rest remain unchanged
-def mask_bits(mask, start, end):
-    if end < start:
-        raise ValueError("End cannot be less than start")
-    mask = mask[:start] + "1" * int(end - start) + mask[end:]
-    return mask
-
-def weighted_probability(weight):
-    if 0 <= weight <= 1:
-        return random.random() < weight
-    else:
-        raise ValueError("Weight must be between 0 and 1")
-
-def letter_count(pairing, m):
-    rcount, pcount, scount, lcount, ycount = 0, 0, 0, 0, 0
-    """ if len(pairing) != m:
-        print(len(pairing), m)
-        raise ValueError("Invalid pairing length.") """
-    for letter in pairing:
-        if letter == "R":
-            rcount += 1
-        if letter == "P":
-            pcount += 1
-        if letter == "S":
-            scount += 1
-        if letter == "L":
-            lcount += 1
-        if letter == "Y":
-            ycount += 1
-    return (rcount, pcount, scount, lcount, ycount)
-
-def letter_count_unmasked(pairing, m, mask):
-    rcount, pcount, scount, lcount, ycount = 0, 0, 0, 0, 0
-     # Find the indices of '0' characters based on the mask
-    zero_indices = [i for i, char in enumerate(mask) if char == '0']
-    subpairing = ""
-    for index in zero_indices:
-        subpairing += pairing[index]
-        
-    for letter in subpairing:
-        if letter == "R":
-            rcount += 1
-        if letter == "P":
-            pcount += 1
-        if letter == "S":
-            scount += 1
-        if letter == "L":
-            lcount += 1
-        if letter == "Y":
-            ycount += 1
-    return (rcount, pcount, scount, lcount, ycount)
-
-
-def strategy_weights(pairing, m):
-    rcount, pcount, scount, lcount, ycount = letter_count(pairing, m)
-    if rcount > int(0.6 * m):
-        return 0.8, 0.2
-    if ycount > int(0.6 * m):
-        return 0.2, 0.8
-    return 0.5, 0.5
-    
+    def __str__(self):
+        return f"Z: {self.index}, {self.met_p}, {self.met_l}, {self.met_y}"
     
 def shuffle_string(input_string):
     # Convert the string to a list of characters
@@ -124,102 +63,37 @@ def masked_shuffle(initial_string, mask):
 
     return shuffled_string
 
-# Function which takes a list of candidates and returns with higher odds a pair of two fitter individuals
-# Every candidate has a chance, but the fitter ones will on average be selected more often
-# This fitness selection is computed relatively, so even for high fitness scores individuals will still be in competition if their peers also score high
-def weighted_candidate_pair(candidates):
-    # Calculate the sum of weights
-    total_weight = sum(weight for _, weight in candidates)
-
-    # Normalize the weights to make them sum to 1
-    normalized_weights = [weight / total_weight for _, weight in candidates]
-
-    # Randomly select a candidate based on the weights
-    fit_pair = random.choices(candidates, weights=normalized_weights, k=2)
-    return fit_pair
-
-def repair_letter_count(pairing, target_r, target_p, target_s, target_l, target_y):
-    curr_r, curr_p, curr_s, curr_l, curr_y = letter_count(pairing, len(pairing))
-    while curr_r < target_r:
-        random_index = random.randint(0, len(pairing))
-        if(pairing[random_index] != 'R'):
-            pairing[random_index] = 'R'
-            curr_r += 1
-        
-            
-
-# Function which cuts the genes in a random number of places, then proceeds to swap some gene segments
-# Granularity represents the average size of a subgene segment, default value is 4
-def crossover_pair(pair, granularity = 4):
-    cuts_number = random.nextInt(0, len(pair[0]) // granularity)
-    cut_indexes = []
-    # Perform cuts
-    for _ in range(cuts_number):
-        cut_indexes.append(random.nextInt(0, len(pair[0])))
-    cut_indexes = cut_indexes.sort()
-    
-    initial_r, initial_p, initial_s, initial_l, initial_y = letter_count(pair[0], len(pair[0]))
-    
-    # Perform crossing over
-    cut_end = 0
-    for i in range(cuts_number):
-        cut_start = cut_end
-        cut_end = cut_indexes[i]
-        pair[0] = pair[0][cut_start:cut_end] + pair[1][cut_end:]
-        
-    
-
-def masked_shuffle_genetic(initial_string, mask, candidates):    
-    if len(initial_string) != len(mask):
-        raise ValueError("Invalid mask length")
-    
-    ########## Genetic Part
-    
-    # Select a pair with higher odds depending on fitness score
-    pair = weighted_candidate_pair(candidates)
-    
-    ##########
-    
-    # Convert the combined string to a list of characters
-    char_list = list(initial_string)
-
-    # Find the indices of '0' characters based on the mask
-    zero_indices = [i for i, char in enumerate(mask) if char == '0']
-
-    substring_list = []
-
-    # Create substring only of masked indexes
-    for index in zero_indices:
-        if char_list[index] not in "RPSLY":
-            raise ValueError("Invalid character outside of RPSLY in random shuffle")
-        substring_list.append(char_list[index])
-            
-    # Shuffle only the substring
-    random.shuffle(substring_list)
-    
-    # Join back shuffled substring into initial stirng
-    count = 0
-    for index in zero_indices:
-        char_list[index] = substring_list[count]
-        count += 1
-
-    # Join the characters back into the initial string_list
-    shuffled_string = ''.join(char_list)
-
-    return shuffled_string
-
-def mutate(pairing, m, numMutations, x_indexes):
+def mutate(pairing, m, numMutations, x_indexes, z_characters, fitness):
+    z_indexes = []
+    for character in z_characters:
+        z_indexes.append(character.index)
     # Find the indices of '0' characters based on the mask
     for i in range(numMutations):
-        index1 = random.randint(0, m - 1)
-        index2 = random.randint(0, m - 1)
-        while index1 not in x_indexes:
-            index1 = random.randint(0, m - 1)
-        while index2 not in x_indexes:
-            index2 = random.randint(0, m - 1)
+        index1 = random.randint(0, len(x_indexes) - 1)
+        index2 = random.randint(0, len(x_indexes) - 1)
+        index1 = x_indexes[index1]
+        index2 = x_indexes[index2]
         # Swap the characters at index1 and index2
         pairing_list = list(pairing)
-        pairing_list[index1], pairing_list[index2] = pairing_list[index2], pairing_list[index1]
+        # The bigger the fitness, the less chance of random mutations
+        if random.random() < (1 / fitness):
+            pairing_list[index1], pairing_list[index2] = pairing_list[index2], pairing_list[index1]
+        else:
+            pairing_list[index1] = random.choice(("R", "P", "S", "L", "Y"))
+        pairing = ''.join(pairing_list)
+    return pairing
+
+def mutate_unsafe(pairing, m, numMutations, x_indexes, z_characters):
+    z_indexes = []
+    for character in z_characters:
+        z_indexes.append(character.index)
+    # Find the indices of '0' characters based on the mask
+    for i in range(numMutations):
+        index1 = random.randint(0, len(x_indexes))
+        index1 = x_indexes[index1]
+        # Swap the characters at index1 and index2
+        pairing_list = list(pairing)
+        pairing_list[index1] = random.choice("R", "P", "S", "L", "Y")
         pairing = ''.join(pairing_list)
     return pairing
 
@@ -234,28 +108,12 @@ def find_z_character_by_index(z_characters, target_index):
 def rock_paper_scissors(player1, player2, index, z_characters):
     if player1 not in "RPSLYZ" or player2 not in "RPSLYZ":
         raise ValueError("Invalid input.")
-    
-    #print(player1, player2, index)
-    if player1 == "Z" and player2 == "R":
-        target_z = find_z_character_by_index(z_characters, index)
-        target_z.met_r = True
-        if target_z.met_r == True and target_z.met_p == True and target_z.met_s == True and target_z.met_l == True and target_z.met_y == True:
-            return player2
-        else:
-            return player1
         
     if player1 == "Z" and player2 == "P":
         target_z = find_z_character_by_index(z_characters, index)
         target_z.met_p = True
-        if target_z.met_r == True and target_z.met_p == True and target_z.met_s == True and target_z.met_l == True and target_z.met_y == True:
-            return player2
-        else:
-            return player1
-        
-    if player1 == "Z" and player2 == "S":
-        target_z = find_z_character_by_index(z_characters, index)
-        target_z.met_s = True
-        if target_z.met_r == True and target_z.met_p == True and target_z.met_s == True and target_z.met_l == True and target_z.met_y == True:
+        if target_z.met_p == True and target_z.met_l == True and target_z.met_y == True:
+            z_characters.remove(target_z)
             return player2
         else:
             return player1
@@ -263,7 +121,8 @@ def rock_paper_scissors(player1, player2, index, z_characters):
     if player1 == "Z" and player2 == "L":
         target_z = find_z_character_by_index(z_characters, index)
         target_z.met_l = True
-        if target_z.met_r == True and target_z.met_p == True and target_z.met_s == True and target_z.met_l == True and target_z.met_y == True:
+        if target_z.met_p == True and target_z.met_l == True and target_z.met_y == True:
+            z_characters.remove(target_z)
             return player2
         else:
             return player1
@@ -271,31 +130,17 @@ def rock_paper_scissors(player1, player2, index, z_characters):
     if player1 == "Z" and player2 == "Y":
         target_z = find_z_character_by_index(z_characters, index)
         target_z.met_y = True
-        if target_z.met_r == True and target_z.met_p == True and target_z.met_s == True and target_z.met_l == True and target_z.met_y == True:
+        if target_z.met_p == True and target_z.met_l == True and target_z.met_y == True:
+            z_characters.remove(target_z)
             return player2
         else:
             return player1
-        
-    if player2 == "Z" and player1 == "R":
-        target_z = find_z_character_by_index(z_characters, index + 1)
-        target_z.met_r = True
-        if target_z.met_r == True and target_z.met_p == True and target_z.met_s == True and target_z.met_l == True and target_z.met_y == True:
-            return player1
-        else:
-            return player2
         
     if player2 == "Z" and player1 == "P":
         target_z = find_z_character_by_index(z_characters, index + 1)
         target_z.met_p = True
-        if target_z.met_r == True and target_z.met_p == True and target_z.met_s == True and target_z.met_l == True and target_z.met_y == True:
-            return player1
-        else:
-            return player2
-        
-    if player2 == "Z" and player1 == "S":
-        target_z = find_z_character_by_index(z_characters, index + 1)
-        target_z.met_s = True
-        if target_z.met_r == True and target_z.met_p == True and target_z.met_s == True and target_z.met_l == True and target_z.met_y == True:
+        if target_z.met_p == True and target_z.met_l == True and target_z.met_y == True:
+            z_characters.remove(target_z)
             return player1
         else:
             return player2
@@ -303,7 +148,8 @@ def rock_paper_scissors(player1, player2, index, z_characters):
     if player2 == "Z" and player1 == "L":
         target_z = find_z_character_by_index(z_characters, index + 1)
         target_z.met_l = True
-        if target_z.met_r == True and target_z.met_p == True and target_z.met_s == True and target_z.met_l == True and target_z.met_y == True:
+        if target_z.met_p == True and target_z.met_l == True and target_z.met_y == True:
+            z_characters.remove(target_z)
             return player1
         else:
             return player2
@@ -311,17 +157,28 @@ def rock_paper_scissors(player1, player2, index, z_characters):
     if player2 == "Z" and player1 == "Y":
         target_z = find_z_character_by_index(z_characters, index + 1)
         target_z.met_y = True
-        if target_z.met_r == True and target_z.met_p == True and target_z.met_s == True and target_z.met_l == True and target_z.met_y == True:
+        if target_z.met_p == True and target_z.met_l == True and target_z.met_y == True:
+            z_characters.remove(target_z)
             return player1
         else:
             return player2
+        
+    if player1 == "Z" and player2 == "Z":
+        target_z1 = find_z_character_by_index(z_characters, index)
+        target_z2 = find_z_character_by_index(z_characters, index + 1)
+        target_z1.met_p = target_z1.met_p and target_z2.met_p
+        target_z1.met_l = target_z1.met_l and target_z2.met_l
+        target_z1.met_y = target_z1.met_y and target_z2.met_y
+        z_characters.remove(target_z2)
+        return player1
     
     if (
         (player1 == "R" and (player2 == "L" or player2 == "S")) or
         (player1 == "P" and (player2 == "R" or player2 == "Y")) or
         (player1 == "S" and (player2 == "P" or player2 == "L")) or
         (player1 == "L" and (player2 == "Y" or player2 == "P")) or
-        (player1 == "Y" and (player2 == "R" or player2 == "S"))
+        (player1 == "Y" and (player2 == "R" or player2 == "S")) or
+        (player1 == "Z" and (player2 == "S" or player2 == "R"))
     ):
         return player1
     else:
@@ -336,14 +193,6 @@ def process_tournament(tournament, m, z_characters):
             new_round += winner
         tournament = new_round
     return tournament
-
-# Function to check whether win condition is met or not
-def check_win_condition(pairing, m, character, z_characters):
-    processed_pairing = process_tournament(pairing, m, z_characters)
-    if processed_pairing in character:
-        return True
-    else:
-        return False
     
 # Fitness function based on win condition
 def fitness_win(pairing, m, z_characters):
@@ -356,17 +205,28 @@ def fitness_win(pairing, m, z_characters):
 # Function to help fitness function determine score
 def fitness_helper(tournament, m, z_characters):
     score = 0
-    print(tournament)
+    """ z_list_str = [str(z) for z in z_characters]
+    print(z_list_str)
+    print(tournament) """
     while len(tournament) > 1:
         new_round = ""
         for i in range(0, len(tournament), 2):
-            print(f"fitnesshelper:{tournament[i]}, {tournament[i + 1]}, {i}")
+            # Use a list comprehension to convert objects to strings and join them
+            
+            #print(f"fitnesshelper:{tournament[i]}, {tournament[i + 1]}, {i}")
             winner = rock_paper_scissors(tournament[i], tournament[i + 1], i, z_characters)
             new_round += winner
         tournament = new_round
+        for z_character in z_characters:
+            z_character.index //= 2
+        """ z_list_str = [str(z) for z in z_characters]
+        print(z_list_str)
+        print(tournament) """
+            
         if "S" in tournament:
             score += (100 / int(math.log2(m)))
-    return (tournament, score)    
+            
+    return (tournament, score)
 
 def replace_character(original_string, index, new_character):
     if 0 <= index < len(original_string):
@@ -376,181 +236,6 @@ def replace_character(original_string, index, new_character):
     else:
         # Handle the case where the index is out of range
         return original_string  # or raise an error, return None, etc.
-
-# Function to generate initial pairings with specified counts of R, P, and S
-def generate_initial_pairing(i, m, r_counts, p_counts, s_counts, l_counts, y_counts, level):
-    if r_counts[i] + p_counts[i] + s_counts[i] + l_counts[i] + y_counts[i] != m:
-        raise ValueError("Invalid input counts for R, P, S, L and Y.")
-    
-    pairing = ""
-    
-    # Create a mask for shuffling only certain indexes
-    mask = '0' * m
-    
-    # Count for masking bits to better guide random guess
-    count = 0
-    
-    ####################
-    # PRRR strategy
-    area = m / 2
-    increment = area
-    # Create P followed by m/2 - 1 R, recursively
-    while p_counts[i] > 0:
-        if r_counts[i] < 1:
-            break
-        pairing += "P"
-        p_counts[i] -= 1
-        mask = mask[:count] + "1" + mask[count+1:]
-        count += 1
-
-        while r_counts[i] > 0 and count < area:
-            pairing += "R"
-            r_counts[i] -= 1
-            mask = mask[:count] + "1" + mask[count+1:]
-            count += 1
-        area += increment / 2
-        increment /= 2
-    
-    # 0P, replace it with Y heuristic
-    if y_counts[i] > 0 and count == 0:
-        pairing += "Y"
-        y_counts[i] -= 1
-        mask = mask[:count] + "1" + mask[count+1:]
-        count += 1
-
-        while r_counts[i] > 0 and count < int(m / 4):
-            pairing += "R"
-            r_counts[i] -= 1
-            mask = mask[:count] + "1" + mask[count+1:]
-            count += 1   
-        if l_counts[i] > 0 and y_counts[i] >= math.log2(m / 4):
-            segment = int(m / 8) - 1
-            start_area = count
-            break_flag = False
-            while count < int(m / 2) and not break_flag:
-                pairing += "Y"
-                y_counts[i] -= 1
-                mask = mask[:count] + "1" + mask[count+1:]
-                count += 1
-                while count <= start_area + segment:
-                    if r_counts[i] > 0:
-                        pairing += "R"
-                        r_counts[i] -= 1
-                        mask = mask[:count] + "1" + mask[count+1:]
-                        count += 1
-                    elif y_counts[i] > 0:
-                        pairing += "Y"
-                        y_counts[i] -= 1
-                        mask = mask[:count] + "1" + mask[count+1:]
-                        count += 1
-                    else:
-                        # Trivial case
-                        break_flag = True
-                        break
-                segment = math.floor(segment / 2)
-                start_area = count
-                if count == start_area + segment:
-                    pairing += "YL"
-                    y_counts[i] -= 1
-                    l_counts[i] -= 1
-                    mask = mask[:count] + "11" + mask[count+2:]
-                    count += 2
-            
-    ##########################
-    # Trivial strategy, by default applied last to fill remainders after other strategies are exhausted
-    
-    # Add the remaining R, P, L and Y trivially
-    while r_counts[i] > 0 or p_counts[i] > 0 or l_counts[i] > 0 or y_counts[i] > 0:
-        if p_counts[i] > 0:
-            pairing += "P"
-            p_counts[i] -= 1
-            count += 1
-        if r_counts[i] > 0:
-            pairing += "R"
-            r_counts[i] -= 1
-            count += 1
-        if y_counts[i] > 0:
-            pairing += "Y"
-            y_counts[i] -= 1
-            count += 1
-        if l_counts[i] > 0:
-            pairing += "L"
-            l_counts[i] -= 1
-            count += 1
-    ###############
-    # End of strategies
-    
-    init_count = count
-    # Group all S at the end
-    while s_counts[i] > 0:
-        pairing += "S"
-        s_counts[i] -= 1
-        count += 1
-    mask = mask[:init_count] + "1" * (count - init_count) + mask[count + 1:]
-
-    # YRRRRRRRYYLYRYYYYYYLYLLYLYYYLYSS
-    # YRRRRRRRRYLLRYLRRYLYYLYYLYLLYLSS
-    # YRRRRRRRYRRRYRYLYRRRYRLLYYLYYLLS
-    # YRRRRRRRYRYLLRYRYLYRRYYYYYYLLYSS
-    # YRRRRRRRLYYRYLYYYYYLRYRYYYYLYLLS
-    # YRRRRRYYLYYYYYYYYYYYYLYLLYYYLYLS
-    # YRRRRRRRRRYYYLRYYYYYYYLLLYYYYLLS
-    # YRRRRRRRYYLYRYYYYLYYYRYRYLYYLLLS
-    
-    # print(pairing, r_counts[i], p_counts[i], s_counts[i], l_counts[i], y_counts[i])
-    if i == 36 and level == 3:
-        pairing = "YRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRLYYRYRRRYRRRRRRRYRRRRRRRRRRRRRRRLYYRYRRRYRRRRRRRYRRRRRRRYRRRRRRRLYYRYRRRLYYYYRRRLYYYYYRRLYYYLYLS"
-    if i == 55 and level == 3:
-        pairing = "PRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRLRRRRRRRRYRYRLYRYRYRRRYYRYRRYRRRYRYRRYLYRRYRYYRRRRYYLLYRYYLLS"
-            
-    # Get a list of decent candidates selected by random chance
-    # Threshold of selection increases when many individuals qualify and decreases over time when they don't         
-    threshold = 65
-    candidates = []
-    stuck = 0
-    while True:
-        letter_counts = letter_count(pairing, m)
-        fitness = fitness_win(pairing,m, *letter_counts)
-        if fitness >= 100:
-            break
-        if fitness > threshold:
-            candidates.append(Candidate(pairing, fitness))
-            threshold += 1
-        else:
-            threshold -= 1
-        # Maintain list of candidates at predetermined length. Only the latest candidates, which should be the fittest, remain
-        if len(candidates) > 1000:
-            candidates = sorted(candidates, key=lambda candidate: candidate.fitness, reverse=False)
-            candidates = candidates[100:]
-            # Further enhance the population by trial and error mutations
-            pairing = mutate(candidates[0].pairing, m, int(m * 0.02), mask)
-        else:
-            pairing = masked_shuffle(pairing, mask)
-        # Shuffling will attempt to pick genes from candidates list instead of random chance, to create better individuals
-        if candidates:
-            #print(f"i={i + 2},level={level}:{process_tournament(pairing, m)}")
-            print(f"{candidates[0]}, i={i + 2},level={level}, stk={stuck}")
-            #print(f"Mask:    {mask}, letters:{letter_count_unmasked(candidates[0].pairing, m, mask)}")
-        stuck += 1
-        if stuck > 10000:
-            stuck = 0
-            substring = pairing[int(m/2):]
-            rc, pc, sc, lc, yc = letter_count(substring, len(substring))
-            print(len(substring), rc, pc, sc, lc, yc)
-            r_counts[i] = rc
-            p_counts[i] = pc
-            s_counts[i] = sc
-            l_counts[i] = lc
-            y_counts[i] = yc
-            pairing = pairing[:int(m/2)] + generate_initial_pairing(i, len(substring), r_counts, p_counts, s_counts, l_counts, y_counts, level)
-                    
-    
-    if r_counts[i] + p_counts[i] + s_counts[i] + l_counts[i] + y_counts[i] != 0 or len(pairing) != m:
-        print(f"level:{level}\nstep:{i}\nrock:{r_counts[i]}\npaper:{p_counts[i]}\nscissors:{s_counts[i]}\nlizard:{l_counts[i]}\nspock:{y_counts[i]}\nlen:{len(pairing)}")
-        raise ValueError("Something is wrong in the pairing making part of code.")
-    
-    print(f"i={i + 2},level={level}:{process_tournament(pairing, m)}")
-    return pairing
 
 def x_shuffle(pairing, m, x_indexes):
     for i in range(m):
@@ -564,18 +249,29 @@ def process_initial_pairing(i, m, pairing, level):
     z_characters = []
     for i in range(m):
         if pairing[i] == 'X':
-            pairing = replace_character(pairing, i, random.choice(('P', 'P', 'P', 'S')))
+            pairing = replace_character(pairing, i, random.choice(('P', 'S', 'R', 'L', 'Y')))
             x_indexes.append(i)
         if pairing[i] == 'Z':
             z_characters.append(z_character(i))
     pairing = pairing[:-1]
     
+    initial_z = copy.deepcopy(z_characters)
+    """ print("First initial z copy: ", end = "")
+    for zobj in initial_z:
+        print(zobj, end = "")
+    print() """
     
     # Get a list of decent candidates selected by random chance
     # Threshold of selection increases when many individuals qualify and decreases over time when they don't         
     threshold = 65
     candidates = []
     while True:
+        z_characters = copy.deepcopy(initial_z)
+        """ print("Subsequent initial z copy: ", end = "")
+        for zobj in z_characters:
+            print(zobj, end = "")
+        print() """
+        
         fitness = fitness_win(pairing,m, z_characters)
         if fitness >= 100:
             break
@@ -585,19 +281,21 @@ def process_initial_pairing(i, m, pairing, level):
         else:
             threshold -= 1
         # Maintain list of candidates at predetermined length. Only the latest candidates, which should be the fittest, remain
-        if len(candidates) > 1000:
-            candidates = sorted(candidates, key=lambda candidate: candidate.fitness, reverse=False)
-            candidates = candidates[100:]
+        if len(candidates) <= 1000 and len(candidates) >= 100:
+            if len(candidates) > 1000:
+                candidates = sorted(candidates, key=lambda candidate: candidate.fitness, reverse=False)
+                candidates = candidates[100:]
             # Further enhance the population by trial and error mutations
-            pairing = mutate(candidates[0].pairing, m, int(m * 0.02), x_indexes)
+            pairing = mutate(candidates[0].pairing, m, int( math.ceil(len(x_indexes)* 0.02)), x_indexes, z_characters, fitness)
         else:
-            pairing = x_shuffle(pairing, m, x_indexes)
+            # Randomly choose individuals initially
+            if len(candidates) < 100:
+                pairing = x_shuffle(pairing, m, x_indexes)
         # Shuffling will attempt to pick genes from candidates list instead of random chance, to create better individuals
         if candidates:
             print(f"{candidates[0]}, i={i + 2},level={level}")
     
-                    
-    print(f"i={i + 2},level={level}:{process_tournament(pairing, m, z_characters)}")
+    print(f"i={i + 2},level={level}")
     return pairing
 
 # Process Rock-Paper-Scissors tournaments for levels 1 to 5
@@ -618,6 +316,7 @@ for level in range(1, 6):
 
         # Process pairings one by one and check if correct or not to proceed or keep trying
         for i in range(n):
+            print(f"ii:{i}")
             pairings[i] = process_initial_pairing(i, m, pairings[i], level)
             processed_pairings.append(pairings[i])
         

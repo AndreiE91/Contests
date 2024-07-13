@@ -1,6 +1,6 @@
 import random
 def foo(x, y, z):
-    return 9875 * x ** 12 - 919 * y ** 21 + 90.176 * z - 25
+    return 101 * x ** 12 - 91 * y ** 21 + 90.176 * z - 76
 
 def fitness(x, y, z):
     ans = foo(x, y, z)
